@@ -15,7 +15,26 @@ from quant.fetcher import fetch_and_store, make_exchange
 st.set_page_config(page_title="Crypto Quant", layout="wide")
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=config.AUTO_UPDATE_MINUTES * 60, show_spinner=False)
+def auto_update(exchange_id: str, symbols: tuple, timeframe: str, days: int) -> list:
+    """開啟頁面時自動補抓最新 K 線。結果快取一段時間，期間內所有訪客共用，不會重複抓。
+
+    雲端主機重新啟動後資料庫是空的，這裡會自動把歷史資料抓回來。
+    """
+    exchange = make_exchange(exchange_id)
+    conn = db.connect(config.DB_PATH)
+    results = []
+    try:
+        for s in symbols:
+            try:
+                results.append((s, fetch_and_store(conn, exchange, s, timeframe, days, log=lambda *_: None), None))
+            except Exception as e:
+                results.append((s, 0, f"{type(e).__name__}: {e}"))
+    finally:
+        conn.close()
+    return results
+
+
 def load(exchange: str, symbol: str, timeframe: str) -> pd.DataFrame:
     conn = db.connect(config.DB_PATH)
     try:
@@ -35,6 +54,14 @@ def available_series() -> pd.DataFrame:
 # ---------------- 側邊欄 ----------------
 st.sidebar.title("Crypto Quant")
 
+if config.AUTO_UPDATE_MINUTES > 0:
+    with st.spinner("正在更新行情資料（第一次開啟約需 1 分鐘）…"):
+        updates = auto_update(config.EXCHANGE, tuple(config.SYMBOLS), config.TIMEFRAME, config.HISTORY_DAYS)
+    for sym, _, err in updates:
+        if err:
+            st.sidebar.error(f"自動更新 {sym} 失敗：{err}")
+    st.sidebar.caption(f"資料來源：{config.EXCHANGE}，每 {config.AUTO_UPDATE_MINUTES} 分鐘自動更新")
+
 with st.sidebar.expander("更新資料", expanded=False):
     ex_id = st.text_input("交易所", config.EXCHANGE)
     syms = st.text_input("交易對", ",".join(config.SYMBOLS))
@@ -53,7 +80,6 @@ with st.sidebar.expander("更新資料", expanded=False):
                         st.error(f"{s} 失敗：{type(e).__name__}: {e}")
         finally:
             conn.close()
-        load.clear()
 
 series = available_series()
 if series.empty:
@@ -114,7 +140,7 @@ with tab_chart:
 
     fig.update_layout(height=720, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10),
                       legend=dict(orientation="h", y=1.02))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     last = df.iloc[-1]
     k1, k2, k3, k4 = st.columns(4)
@@ -167,18 +193,18 @@ with tab_bt:
     eq.add_trace(go.Scatter(x=res.benchmark.index, y=res.benchmark, name="買入持有", line=dict(dash="dot")))
     eq.update_layout(height=420, title="權益曲線（起始 = 1）", margin=dict(l=10, r=10, t=70, b=10),
                      legend=dict(orientation="h", y=1.0, yanchor="bottom"))
-    st.plotly_chart(eq, use_container_width=True)
+    st.plotly_chart(eq, width="stretch")
 
     dd = res.equity / res.equity.cummax() - 1
     ddf = go.Figure(go.Scatter(x=dd.index, y=dd, fill="tozeroy", name="回撤", line=dict(color="#d62728")))
     ddf.update_layout(height=220, title="回撤", yaxis_tickformat=".0%", margin=dict(l=10, r=10, t=40, b=10))
-    st.plotly_chart(ddf, use_container_width=True)
+    st.plotly_chart(ddf, width="stretch")
 
     st.subheader("交易明細")
     if res.trades.empty:
         st.write("此區間沒有交易。")
     else:
         st.dataframe(res.trades.style.format({"報酬率": "{:.2%}", "進場價": "{:,.2f}", "出場價": "{:,.2f}"}),
-                     use_container_width=True)
+                     width="stretch")
 
     st.caption("訊號在 K 線收盤時產生，下一根才持有部位。手續費在每次進出場時扣除。過去績效不代表未來表現。")

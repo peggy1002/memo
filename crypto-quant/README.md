@@ -2,7 +2,7 @@
 
 用 Python + ccxt + SQLite + Streamlit 做的個人量化分析儀表板。
 
-- **資料**：透過 ccxt 從交易所增量抓 K 線（預設 Binance 的 BTC/USDT、ETH/USDT，1 小時線，往回一年），存在本地 SQLite。
+- **資料**：透過 ccxt 從交易所增量抓 K 線（預設 Binance.US 的 BTC/USDT、ETH/USDT，1 小時線，往回一年），存在本地 SQLite。開啟儀表板時每 10 分鐘自動補抓最新資料。
 - **圖表**：K 線，可疊加 EMA／SMA、布林通道，副圖可選 RSI、MACD、成交量。
 - **回測**：均線交叉、RSI 均值回歸、通道突破三種策略，可調參數和手續費；輸出總報酬、年化報酬、最大回撤、夏普比率、勝率，以及權益曲線、回撤圖和交易明細，並和買入持有對照。
 
@@ -12,7 +12,7 @@
 cd crypto-quant
 python -m venv .venv
 source .venv/bin/activate        # Windows：.venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # 含測試工具；只想執行可用 requirements.txt
 ```
 
 ## 使用
@@ -42,7 +42,31 @@ python scripts/update_data.py --loop 3600
 
 預設值也可以用環境變數設定：`CQ_EXCHANGE`、`CQ_SYMBOLS`、`CQ_TIMEFRAME`、`CQ_HISTORY_DAYS`、`CQ_DB_PATH`。
 
-> 如果所在地區連不到 Binance（例如美國），請改用 `--exchange okx` 或其他交易所。
+預設交易所是 `binanceus`，因為部署用的 Streamlit Cloud 主機在美國，Binance 主站會擋美國的連線。在台灣自己的電腦上執行時，可以設 `CQ_EXCHANGE=binance` 改用 Binance 主站。
+
+## 部署到 Streamlit Community Cloud（免費）
+
+1. 到 <https://share.streamlit.io>，用 GitHub 帳號登入並授權。
+2. 點 **Create app** → **Deploy a public app from GitHub**。
+3. 填入：
+   - Repository：`peggy1002/memo`
+   - Branch：`claude/claim-credit-endpoint-yj6in0`
+   - Main file path：`crypto-quant/app.py`
+   - App URL：自訂一個好記的名稱
+4. 點 **Deploy**，等幾分鐘安裝套件。第一次開啟時會自動抓一年的資料，大約需要 1 分鐘。
+
+之後只要 push 新的程式碼到這個分支，網站就會自動更新。
+
+注意事項：
+
+- 免費主機重新啟動或休眠後，資料庫會清空；下次開啟時會自動重新抓取。
+- 一段時間沒人使用，網站會進入休眠，再開啟時按畫面上的按鈕喚醒即可。
+- 想改設定（交易所、交易對、週期等）時，在 App 的 **Settings → Secrets** 填入例如：
+
+  ```toml
+  CQ_SYMBOLS = "BTC/USDT,ETH/USDT,SOL/USDT"
+  CQ_TIMEFRAME = "4h"
+  ```
 
 ## 回測規則
 

@@ -4,8 +4,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 交易所（ccxt 的 id，例如 binance、okx、bybit）
-EXCHANGE = os.getenv("CQ_EXCHANGE", "binance")
+# 交易所（ccxt 的 id，例如 binance、binanceus、okx、kraken）
+# 預設用 binanceus：Streamlit Cloud 主機在美國，binance.com 會擋美國的連線。
+# 在台灣自己的電腦上執行時，可設 CQ_EXCHANGE=binance 改用 Binance 主站。
+EXCHANGE = os.getenv("CQ_EXCHANGE", "binanceus")
 
 # 追蹤的交易對，以逗號分隔
 SYMBOLS = [s.strip() for s in os.getenv("CQ_SYMBOLS", "BTC/USDT,ETH/USDT").split(",") if s.strip()]
@@ -15,6 +17,9 @@ TIMEFRAME = os.getenv("CQ_TIMEFRAME", "1h")
 
 # 第一次抓取時往回抓幾天
 HISTORY_DAYS = int(os.getenv("CQ_HISTORY_DAYS", "365"))
+
+# 開啟儀表板時自動補抓最新資料的間隔（分鐘）；0 表示關閉
+AUTO_UPDATE_MINUTES = int(os.getenv("CQ_AUTO_UPDATE_MINUTES", "10"))
 
 # SQLite 資料庫位置
 DB_PATH = Path(os.getenv("CQ_DB_PATH", ROOT / "data" / "market.db"))
